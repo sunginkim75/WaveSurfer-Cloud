@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wave Surfer Dashboard</title>
+  <!-- Google Fonts & Style Sheets -->
+  <link rel="stylesheet" href="/static/css/index.css?v=1.16.0">
+  <!-- Lucide Icons (CDN) -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- ApexCharts (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <!-- Google Identity Services (OAuth2) (CDN) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Main Dashboard Script -->
+  <script src="/static/js/app.js?v=1.16.0" defer></script>
+</head>
+<body class="theme-domino"> <!-- 기본 테마: 도미노 -->
+  <!-- 로딩 오버레이 -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text">구글 시트에서 데이터를 불러오는 중...</div>
+  </div>
+  <!-- PC/모바일 통합형 앱 쉘 -->
+  <div class="app-shell">
+    
+    <!-- 헤더 -->
+    <header>
+      <div class="brand" style="display: flex; align-items: center; gap: 0.4rem;">
+        <i data-lucide="activity" class="brand-icon"></i>
+        <div style="display: flex; align-items: flex-end; gap: 4px;">
+          <h1 style="margin: 0; line-height: 1;">Wave Surfer</h1>
+          <span id="appVersionHeader" style="font-size: 0.68rem; color: var(--text-secondary); font-weight: 600; opacity: 0.85; line-height: 1.2;"></span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <!-- 계좌/시트 선택 드롭다운 (스타일링 최소화로 투명글씨 방지) -->
+        <select id="activeSheetSelector" class="filter-select">
+          <!-- 동적 로드 -->
+        </select>
+      </div>
+    </header>
+    <!-- 웰컴 화면 (연동 설정이 안 되어 있을 때 표시) -->
+    <div id="welcomeScreen" class="glass-card welcome-container">
+      <i data-lucide="shield-check" class="welcome-icon"></i>
+      <h2 class="welcome-title">비공개 구글 시트 연동</h2>
+      <p class="welcome-desc">
+        자산 정보를 안전하게 보호하기 위해 구글 시트를 비공개(제한됨) 상태로 유지한 채 구글 로그인을 통하여 실시간으로 데이터를 불러옵니다.
+      </p>
+      
+      <!-- 설정 전 (등록된 시트가 없을 때) -->
+      <div id="welcomeSetupSection" style="width: 100%;">
+        <p class="welcome-desc" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+          시작하려면 불러올 구글 스프레드시트 ID를 먼저 등록해 주세요.
+        </p>
+        <button id="setupBtn" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.8rem;">
+          <i data-lucide="plus-circle" style="width: 18px; height: 18px;"></i>
+          <span>구글 시트 ID 등록 시작</span>
+        </button>
+      </div>
+      <!-- 설정 후 로그인 대기 (등록된 시트가 있을 때) -->
+      <div id="welcomeLoginSection" style="width: 100%; display: none;">
+        <button id="googleLoginBtn" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.8rem; background: linear-gradient(135deg, #4285F4, #34A853);">
+          <i data-lucide="log-in" style="width: 18px; height: 18px;"></i>
+          <span>Google 계정으로 로그인하여 연동</span>
+        </button>
+        <p class="form-help" style="margin-top: 0.75rem; font-size: 0.75rem; text-align: center;">
+          동일 브라우저에서는 최초 1회 승인 후 자동으로 연동이 유지됩니다.
+        </p>
+      </div>
+    </div>
+    <!-- 메인 대시보드 영역 (설정 및 로그인 완료 후 표시) -->
+    <div id="mainDashboard" style="display: none;">
+      
+      <!-- 1. 홈 탭 (Home) -->
+      <div id="home-tab" class="tab-content">
+        <!-- 도미노/은행 스타일 통합 자산 카드 -->
+        <div id="assetSummaryCard" class="glass-card main-summary-card">
+          <div class="summary-card-header">
+            <span class="card-label">총 자산 가치</span>
+          </div>
+          <div id="totalValue" class="total-asset-val">$0</div>
+          <div class="profit-badge-row">
+            <span id="totalProfitRateBadge" class="profit-rate-badge">+0.00%</span>
+          </div>
+          
+          <div class="summary-divider"></div>
+          
+          <div class="summary-details-grid">
+            <div class="detail-item">
+              <span class="detail-label">투자 원금</span>
+              <span id="totalCostBase" class="detail-value">$0</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">누적 실현손익</span>
+              <span id="realizedProfit" class="detail-value">$0</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">보유 예수금</span>
+              <span id="cashValue" class="detail-value">$0</span>
+            </div>
+          </div>
+        </div>
+        <!-- 기간별 수익률 요약 카드 (1M, 3M, YTD, 1Y) -->
+        <div class="glass-card performance-summary-card">
+          <div class="card-title" style="margin-bottom: 1rem;">
+            <i data-lucide="award" class="title-icon icon-purple"></i>
+            <span>기간별 수익률 요약</span>
+          </div>
+          <div class="perf-grid">
+            <div class="perf-item">
+              <span class="perf-label">최근 1개월</span>
+              <span id="perf1M" class="perf-value font-title">0.00%</span>
+              <span id="annual1M" class="annual-est">연환산 --%</span>
+            </div>
+            <div class="perf-item">
+              <span class="perf-label">최근 3개월</span>
+              <span id="perf3M" class="perf-value font-title">0.00%</span>
+              <span id="annual3M" class="annual-est">연환산 --%</span>
+            </div>
+            <div class="perf-item">
+              <span class="perf-label">올해 누적 (YTD)</span>
+              <span id="perfYTD" class="perf-value font-title">0.00%</span>
+              <span id="annualYTD" class="annual-est">연환산 --%</span>
+            </div>
+            <div class="perf-item">
+              <span class="perf-label">최근 1년 (1Y)</span>
+              <span id="perf1Y" class="perf-value font-title">0.00%</span>
+            </div>
+          </div>
+        </div>
+        <!-- 미니 차트 카드 -->
+        <div class="glass-card chart-card">
+          <div class="card-title">
+            <i data-lucide="area-chart" class="title-icon icon-blue"></i>
+            <span>누적 자산 및 예수금 추이</span>
+          </div>
+          <div id="assetTrendChart" style="min-height: 220px;"></div>
+        </div>
+        <!-- 월별 매매 및 실현손익 차트 카드 -->
+        <div class="glass-card chart-card">
+          <div class="card-title" style="justify-content: space-between; align-items: flex-start;">
+            <div style="display:flex; flex-direction:column; gap:0.25rem;">
+              <div style="display:flex; align-items:center; gap:0.4rem;">
+                <i data-lucide="bar-chart-3" class="title-icon icon-pink"></i>
+                <span>월별 실현 손익 (단위: $)</span>
+              </div>
+              <div id="yearlyTotalProfitText" style="font-size:0.75rem; color:var(--text-muted); margin-left:1.8rem; font-weight:600;">-</div>
+            </div>
+            <div id="yearSelectorBtns" class="year-selector-group"></div>
+          </div>
+          <div id="monthlyChart" style="min-height: 180px;"></div>
+        </div>
+      </div>
+      <!-- 2. 분석 탭 (Daily - 일자별 변동 현황 카드 리스트) -->
+      <div id="daily-tab" class="tab-content" style="display: none;">
+        <div class="section-header">
+          <i data-lucide="line-chart" class="section-icon icon-purple"></i>
+          <h2>일자별 상세 현황</h2>
+        </div>
+        <div id="dailyCardList" class="card-feed">
+          <!-- 동적 카드 삽입 -->
+        </div>
+      </div>
+      <!-- 3. 내역 탭 (History - 체결 내역 카드 리스트 및 검색 필터) -->
+      <div id="history-tab" class="tab-content" style="display: none;">
+        <div class="section-header">
+          <i data-lucide="history" class="section-icon icon-pink"></i>
+          <h2>체결 기록 상세</h2>
+        </div>
+        
+        <!-- 필터 및 검색 컨트롤러 (콤팩트형) -->
+        <div class="compact-filter-bar">
+          <div class="search-input-wrapper">
+            <i data-lucide="search" class="search-icon"></i>
+            <input type="text" id="transactionSearch" placeholder="날짜 또는 매매모드 검색...">
+          </div>
+          <div class="filter-dropdowns">
+            <select id="transactionTypeFilter" class="filter-select-mini">
+              <option value="ALL">전체 구분</option>
+              <option value="BUY">매수만</option>
+              <option value="SELL">매도만</option>
+            </select>
+            <select id="transactionSort" class="filter-select-mini">
+              <option value="DATE_DESC">최신순</option>
+              <option value="DATE_ASC">과거순</option>
+              <option value="VAL_DESC">금액순</option>
+            </select>
+          </div>
+        </div>
+        <div id="transactionCardList" class="card-feed">
+          <!-- 동적 카드 삽입 -->
+        </div>
+      </div>
+      <!-- 3-2. 주문 탭 (Order Guide - CJ10~CM 예약주문표 테이블 및 BN8 기준일) -->
+      <div id="order-tab" class="tab-content" style="display: none;">
+        <div class="section-header">
+          <i data-lucide="shopping-bag" class="section-icon icon-purple"></i>
+          <h2>예약 주문표</h2>
+        </div>
+        
+        <!-- 주문일 정보 카드 -->
+        <div class="glass-card" style="margin-bottom: 1rem; padding: 0.75rem 1rem;">
+          <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">주문일</div>
+          <div id="orderBaseDate" style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">-</div>
+        </div>
+        <!-- 주문 목록 카드 피드 -->
+        <div id="orderTableContainer">
+          <!-- 주문표 테이블이 동적으로 렌더링됨 -->
+        </div>
+      </div>
+      <!-- 3-3. 시뮬레이터 탭 (Simulator - 백테스트 설정 및 결과 차트) -->
+      <div id="simulator-tab" class="tab-content" style="display: none;">
+        <div class="section-header">
+          <i data-lucide="flask-conical" class="section-icon icon-blue"></i>
+          <h2>투자 전략 시뮬레이터</h2>
+        </div>
+        
+        <!-- 파라미터 입력 폼 카드 -->
+        <div class="glass-card" style="margin-bottom: 1rem; padding: 1.25rem 1rem;">
+          <h3 style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.4rem;">
+            <i data-lucide="sliders" style="width: 16px; height: 16px; color: var(--text-muted);"></i>
+            기본 변수 설정
+          </h3>
+          
+          <!-- 저장된 결과 불러오기 및 관리 영역 -->
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 0.65rem; margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+            <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">💾 저장된 백테스트 내역 불러오기</label>
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              <select id="simSavedList" class="filter-select" style="flex: 1; font-size: 0.8rem; font-weight: 600;">
+                <option value="">-- 불러올 이력을 선택하세요 --</option>
+              </select>
+              <button id="deleteSimBtn" class="btn" style="padding: 0.45rem; background: rgba(255, 23, 68, 0.08); border-color: rgba(255, 23, 68, 0.15); color: var(--danger); height: 32px;" title="선택된 이력 삭제">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+              </button>
+              <button id="importSimFileBtn" class="btn" style="padding: 0.45rem; background: rgba(0, 242, 254, 0.05); border-color: rgba(0, 242, 254, 0.15); color: var(--neon-blue); height: 32px;" title="JSON 파일에서 가져오기">
+                <i data-lucide="upload" style="width: 14px; height: 14px;"></i>
+              </button>
+              <input type="file" id="simFileInput" accept=".json" style="display: none;">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+            <button id="presetAggressive" class="btn btn-primary" style="flex: 1; justify-content: center; font-size: 0.8rem; padding: 0.5rem;">공격투자형</button>
+            <button id="presetActive" class="btn btn-secondary" style="flex: 1; justify-content: center; font-size: 0.8rem; padding: 0.5rem;">적극투자형</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+            <div class="form-group" style="grid-column: span 2;">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">백테스트 대상 티커</label>
+              <select id="simTargetTicker" class="filter-select" style="width: 100%; font-weight: 600;">
+                <option value="SOXL">SOXL</option>
+                <option value="TQQQ">TQQQ</option>
+                <option value="MANUAL">직접 입력...</option>
+              </select>
+              <div id="simManualTickerWrapper" style="display: none; margin-top: 0.5rem;">
+                <input type="text" id="simTargetTickerManual" placeholder="티커 직접 입력 (예: TSLA)" style="width: 100%; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600; text-transform: uppercase;">
+              </div>
+            </div>
+            
+            <div class="form-group" style="grid-column: span 2;">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">투자 원금 ($)</label>
+              <input type="number" id="simSeedAmt" value="10000" step="1000" style="width: 100%; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">시작일 (2018-07-27~)</label>
+              <input type="date" id="simStartDate" style="width: 100%; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">종료일</label>
+              <input type="date" id="simEndDate" style="width: 100%; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+            </div>
+            
+            <div class="form-group">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">안전모드 LOC 매수(%)</label>
+              <div style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding-right: 0.75rem;">
+                <input type="number" id="simSafeBuyPct" value="3" step="0.1" style="width: 100%; background: transparent; border: none; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">%</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">안전모드 LOC 매도(%)</label>
+              <div style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding-right: 0.75rem;">
+                <input type="number" id="simSafeSellPct" value="0.2" step="0.1" style="width: 100%; background: transparent; border: none; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">%</span>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">공세모드 LOC 매수(%)</label>
+              <div style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding-right: 0.75rem;">
+                <input type="number" id="simAggBuyPct" value="5" step="0.1" style="width: 100%; background: transparent; border: none; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">%</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">공세모드 LOC 매도(%)</label>
+              <div style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding-right: 0.75rem;">
+                <input type="number" id="simAggSellPct" value="2.5" step="0.1" style="width: 100%; background: transparent; border: none; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">%</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">원금 분할 (개수)</label>
+              <div style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding-right: 0.75rem;">
+                <input type="number" id="simSplitCount" value="7" step="1" style="width: 100%; background: transparent; border: none; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">분할</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">손익갱신주기 (거래일)</label>
+              <div style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding-right: 0.75rem;">
+                <input type="number" id="simUpdatePeriod" value="10" step="1" style="width: 100%; background: transparent; border: none; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">일</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">이익복리율 (%)</label>
+              <div style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding-right: 0.75rem;">
+                <input type="number" id="simCompoundingProfitRate" value="80" step="1" style="width: 100%; background: transparent; border: none; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">%</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">손실복리율 (%)</label>
+              <div style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding-right: 0.75rem;">
+                <input type="number" id="simCompoundingLossRate" value="30" step="1" style="width: 100%; background: transparent; border: none; padding: 0.5rem 0.75rem; color: #fff; font-size: 0.8rem; outline: none; font-weight: 600;">
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700;">%</span>
+              </div>
+            </div>
+          </div>
+          
+          <button id="runSimulationBtn" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 0.5rem; padding: 0.6rem; font-size: 0.85rem;">
+            <i data-lucide="play" style="width: 16px; height: 16px;"></i>
+            <span>백테스트 실행</span>
+          </button>
+        </div>
+        <!-- 시뮬레이션 결과 요약 카드 -->
+        <div class="glass-card" style="margin-bottom: 1rem; padding: 1.25rem 1rem;">
+          <h3 style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.4rem;">
+            <i data-lucide="award" style="width: 16px; height: 16px; color: var(--neon-purple);"></i>
+            시뮬레이션 요약 결과
+          </h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+              <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 500;">누적 복리 수익률</span>
+              <span id="simTotalReturn" style="font-size: 1.2rem; font-family: var(--font-title); font-weight: 800; color: var(--text-primary);">-</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+              <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 500;">최대 낙폭 (MDD)</span>
+              <span id="simMDD" style="font-size: 1.2rem; font-family: var(--font-title); font-weight: 800; color: var(--danger);">-</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+              <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 500;">실현 손익</span>
+              <span id="simRealizedProfit" style="font-size: 1.2rem; font-family: var(--font-title); font-weight: 800; color: var(--text-primary);">-</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+              <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 500;">연환산 수익률 (CAGR)</span>
+              <span id="simCAGR" style="font-size: 1.2rem; font-family: var(--font-title); font-weight: 800; color: var(--success);">-</span>
+            </div>
+            <!-- 결과 저장 및 내보내기 작업 버튼 영역 -->
+            <div id="simSaveActionArea" style="display: none; grid-column: span 2; margin-top: 1rem; gap: 0.5rem;">
+              <button id="saveSimResultBtn" class="btn btn-primary" style="flex: 1; justify-content: center; font-size: 0.8rem; padding: 0.5rem 0;">
+                <i data-lucide="save" style="width: 14px; height: 14px;"></i>
+                <span>결과 저장하기</span>
+              </button>
+              <button id="exportSimJsonBtn" class="btn btn-secondary" style="flex: 1; justify-content: center; font-size: 0.8rem; padding: 0.5rem 0;">
+                <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                <span>JSON 파일 내보내기</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <!-- 시뮬레이션 상세 매수/매도 내역 테이블 -->
+        <div class="glass-card" style="margin-bottom: 1rem; padding: 1.25rem 1rem;">
+          <h3 style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.4rem;">
+            <i data-lucide="list-ordered" style="width: 16px; height: 16px; color: var(--neon-purple);"></i>
+            백테스트 상세 거래 내역 (엑셀 대조용)
+          </h3>
+          <div style="overflow-x: auto; max-height: 300px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.72rem; text-align: left; white-space: nowrap;">
+              <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); color: var(--text-muted); font-size: 0.68rem;">
+                  <th style="padding: 0.4rem;">거래일자</th>
+                  <th style="padding: 0.4rem;">종가</th>
+                  <th style="padding: 0.4rem;">매매모드</th>
+                  <th style="padding: 0.4rem;">매수예정</th>
+                  <th style="padding: 0.4rem;">매수량</th>
+                  <th style="padding: 0.4rem;">매수금액</th>
+                  <th style="padding: 0.4rem;">목표가</th>
+                  <th style="padding: 0.4rem;">매도일</th>
+                  <th style="padding: 0.4rem;">매도가</th>
+                  <th style="padding: 0.4rem;">매도량</th>
+                  <th style="padding: 0.4rem;">매도금액</th>
+                  <th style="padding: 0.4rem;">예수금</th>
+                  <th style="padding: 0.4rem;">당일실현</th>
+                  <th style="padding: 0.4rem;">손익금액</th>
+                  <th style="padding: 0.4rem;">누적손익</th>
+                  <th style="padding: 0.4rem;">추가복리</th>
+                  <th style="padding: 0.4rem;">자금갱신</th>
+                </tr>
+              </thead>
+              <tbody id="simDetailTableBody">
+                <tr><td colspan="17" style="padding: 1rem; text-align: center; color: var(--text-muted);">백테스트 실행 시 상세 거래 내역이 여기에 표시됩니다.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <!-- 시뮬레이션 자산 추이 차트 (홈 탭과 동일 구성) -->
+        <div class="glass-card chart-card">
+          <div class="card-title">
+            <i data-lucide="bar-chart-2" class="title-icon icon-blue"></i>
+            <span>백테스트 자산 추이</span>
+          </div>
+          <div id="simulationChart" style="min-height: 240px;"></div>
+        </div>
+      </div>
+      <!-- 4. 설정 탭 (Settings - 계좌 등록/삭제 및 테마 체인저) -->
+      <div id="settings-tab" class="tab-content" style="display: none;">
+        <div class="section-header">
+          <i data-lucide="settings" class="section-icon icon-blue"></i>
+          <h2>대시보드 설정</h2>
+        </div>
+        <!-- 실시간 테마 스킨 체인저 -->
+        <div class="glass-card settings-card">
+          <h3 class="settings-card-title">데모 스킨 테마 선택</h3>
+          <div class="theme-switch-wrapper">
+            <select id="themeSelector" class="filter-select" style="width: 100%; font-weight: 600;">
+              <option value="theme-domino">도미노(Domino) - 심플 딥다크 스킨</option>
+              <option value="theme-rich">리치 포트폴리오(Rich) - 화려한 분석 스킨</option>
+              <option value="theme-bank">토스/현대 뱅크(Bank UI) - 플랫 뱅킹 스킨</option>
+            </select>
+          </div>
+          <p class="form-help" style="margin-top: 0.5rem;">선택 시 배경, 컬러, 폰트, 카드 라운딩과 차트 팔레트가 즉각 변경됩니다.</p>
+        </div>
+        <!-- 신규 시트 추가 -->
+        <div class="glass-card settings-card">
+          <h3 class="settings-card-title">새 구글 시트 등록</h3>
+          <div class="form-group">
+            <input type="text" id="newSheetNameInput" placeholder="시트 별칭 (예: 주력 계좌)">
+          </div>
+          <div class="form-group">
+            <input type="text" id="newSheetIdInput" placeholder="구글 스프레드시트 ID">
+          </div>
+          <button id="addSheetBtn" class="btn btn-primary" style="width: 100%; justify-content: center;">
+            <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+            <span>새 시트 추가</span>
+          </button>
+        </div>
+        <!-- 등록된 시트 목록 -->
+        <div class="glass-card settings-card">
+          <h3 class="settings-card-title">등록된 구글 시트</h3>
+          <div id="sheetListContainer" class="settings-sheet-list">
+            <!-- 동적 시트 목록 삽입 -->
+          </div>
+        </div>
+        <!-- 고급 설정 (Client ID 커스텀) -->
+        <div class="glass-card settings-card">
+          <details style="cursor: pointer;">
+            <summary style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">고급 설정 (Client ID 변경)</summary>
+            <div class="form-group" style="margin-top: 0.75rem;">
+              <input type="password" id="clientIdInput" placeholder="Client ID 입력 (공란일 시 내장값 사용)">
+            </div>
+          </details>
+        </div>
+        <!-- 계정 로그아웃 및 초기화 -->
+        <div class="settings-action-buttons" style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+          <button id="refreshBtn" class="btn" style="justify-content: center; width: 100%; background: rgba(0, 242, 254, 0.05); border-color: rgba(0, 242, 254, 0.2);">
+            <i data-lucide="refresh-cw" style="width: 16px; height: 16px; color: var(--neon-blue);"></i>
+            <span style="color: var(--neon-blue);">시트 데이터 강제 새로고침</span>
+          </button>
+          <button id="logoutBtn" class="btn" style="justify-content: center; width: 100%; color: var(--danger); background: rgba(255,23,68,0.05); border-color: rgba(255,23,68,0.15);">
+            <i data-lucide="log-out" style="width: 16px; height: 16px;"></i>
+            <span>Google 계정 연동 해제</span>
+          </button>
+          <button id="settingsResetBtn" class="btn" style="justify-content: center; width: 100%; color: var(--text-muted); border-color: rgba(255,255,255,0.05);">
+            <span>대시보드 모든 설정 초기화</span>
+          </button>
+        </div>
+        <!-- 버전 표시 -->
+        <div id="appVersionSettings" style="margin-top: 1.5rem; text-align: center; font-size: 0.72rem; color: var(--text-muted); opacity: 0.85; font-family: 'Outfit', sans-serif;"></div>
+      </div>
+    </div>
+    <!-- 하단 네이티브 스타일 탭 네비게이션 바 -->
+    <nav id="bottomNavBar" class="bottom-nav" style="display: none;">
+      <button class="nav-item active" data-tab="home-tab">
+        <i data-lucide="home"></i>
+        <span>홈</span>
+      </button>
+      <button class="nav-item" data-tab="daily-tab">
+        <i data-lucide="line-chart"></i>
+        <span>분석</span>
+      </button>
+      <button class="nav-item" data-tab="history-tab">
+        <i data-lucide="history"></i>
+        <span>내역</span>
+      </button>
+      <button class="nav-item" data-tab="order-tab">
+        <i data-lucide="shopping-bag"></i>
+        <span>주문</span>
+      </button>
+      <button class="nav-item" data-tab="simulator-tab">
+        <i data-lucide="flask-conical"></i>
+        <span>시뮬</span>
+      </button>
+      <button class="nav-item" data-tab="settings-tab">
+        <i data-lucide="settings"></i>
+        <span>설정</span>
+      </button>
+    </nav>
+  </div>
+</body>
+</html>

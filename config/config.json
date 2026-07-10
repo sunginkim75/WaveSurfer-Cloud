@@ -1,0 +1,21 @@
+{
+    "accounts": {
+        "acc_1": "계좌번호입력",
+        "acc_2": "계좌번호입력"
+    },
+    "kiwoom": {
+        "app_key": "KIWOOM_APP_KEY_HERE",
+        "app_secret": "KIWOOM_APP_SECRET_HERE",
+        "domain": "https://openapi.kiwoom.com",
+        "token_path": "config/kiwoom_token.json"
+    },
+    "telegram": {
+        "bot_token": "TELEGRAM_BOT_TOKEN_HERE",
+        "allowed_chat_id": 7884470461
+    },
+    "server": {
+        "passcode": "admin1234",
+        "port": 8000,
+        "mode": "mock" 
+    }
+}

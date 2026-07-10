@@ -1,0 +1,13 @@
+{
+    "tasks": [
+        {
+            "id": "TASK_001_SOXL",
+            "account_id": "acc_1",
+            "symbol": "SOXL",
+            "strategy": "SURFER_BATCH",
+            "seed_money": 10000.0,
+            "divisions": 40,
+            "status": "RUNNING"
+        }
+    ]
+}
