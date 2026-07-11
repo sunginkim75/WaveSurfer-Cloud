@@ -182,7 +182,9 @@ class SurferBatchStrategy(BaseStrategy):
                     "buyPrice": batch_to_remove["buyPrice"],
                     "sellPrice": price,
                     "qty": qty,
-                    "realized_profit": realized_profit
+                    "realized_profit": realized_profit,
+                    "buyDate": batch_to_remove.get("buyDate", ""),
+                    "buyMode": batch_to_remove.get("buyMode", "안전모드")
                 })
                 batches.remove(batch_to_remove)
                 logger.info(f"배치 청산 완료. 실현손익: {realized_profit:.2f}")

@@ -352,6 +352,26 @@ def run_backtest(data: BacktestRequestModel):
         return JSONResponse(status_code=500, content={"message": str(e)})
 
 
+@app.get("/api/v1/tasks/{task_id}/matching")
+def get_matching_table(task_id: str):
+    """
+    실제 운영 중인 Task의 체결 내역과 시장 데이터를 결합한 매매 대조표 보고서를 반환합니다.
+    """
+    config = db.load_json(engine.config_path)
+    tasks = config.get("tasks", [])
+    task_config = next((t for t in tasks if t.get("id") == task_id), None)
+    if not task_config:
+        return JSONResponse(status_code=404, content={"message": "Task not found"})
+        
+    try:
+        from core.backtest_assembler import BacktestAssembler
+        result = BacktestAssembler.assemble_matching_report(task_config)
+        return result
+    except Exception as e:
+        logger.error(f"매칭 테이블 조립 실패: {e}")
+        return JSONResponse(status_code=500, content={"message": str(e)})
+
+
 def main():
     logger.info("Starting Uvicorn Server...")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

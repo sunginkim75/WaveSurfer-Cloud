@@ -1,4 +1,4 @@
-const APP_VERSION = '1.18.0';
+const APP_VERSION = '1.19.0';
 let tasksData = [];
 let simulationChart = null;
 
@@ -29,22 +29,31 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshAllData();
 
     // Setup Global Buttons
-    document.getElementById('refreshBtn').addEventListener('click', refreshAllData);
-    document.getElementById('refreshLogsBtn').addEventListener('click', loadSystemLogs);
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', refreshAllData);
+
+    const refreshLogsBtn = document.getElementById('refreshLogsBtn');
+    if (refreshLogsBtn) refreshLogsBtn.addEventListener('click', loadSystemLogs);
     
-    document.getElementById('triggerExecuteBtn').addEventListener('click', async () => {
-        try {
-            await fetch('/api/v1/engine/execute', {method: 'POST'});
-            alert("전체 수동 매매(Dry-run)가 백그라운드에 등록되었습니다.");
-        } catch(e){ alert("오류 발생"); }
-    });
+    const triggerExecuteBtn = document.getElementById('triggerExecuteBtn');
+    if (triggerExecuteBtn) {
+        triggerExecuteBtn.addEventListener('click', async () => {
+            try {
+                await fetch('/api/v1/engine/execute', {method: 'POST'});
+                alert("전체 수동 매매(Dry-run)가 백그라운드에 등록되었습니다.");
+            } catch(e){ alert("오류 발생"); }
+        });
+    }
     
-    document.getElementById('triggerSyncBtn').addEventListener('click', async () => {
-        try {
-            await fetch('/api/v1/engine/sync', {method: 'POST'});
-            alert("전체 체결 동기화가 백그라운드에 등록되었습니다.");
-        } catch(e) { alert("오류 발생"); }
-    });
+    const triggerSyncBtn = document.getElementById('triggerSyncBtn');
+    if (triggerSyncBtn) {
+        triggerSyncBtn.addEventListener('click', async () => {
+            try {
+                await fetch('/api/v1/engine/sync', {method: 'POST'});
+                alert("전체 체결 동기화가 백그라운드에 등록되었습니다.");
+            } catch(e) { alert("오류 발생"); }
+        });
+    }
 });
 
 function setupTabs() {
@@ -646,6 +655,8 @@ function setupSimulator() {
 }
 
 async function runSimulation() {
+    const simTaskSelector = document.getElementById('simTaskSelector');
+    const taskId = simTaskSelector ? simTaskSelector.value : '';
     const simTargetTicker = document.getElementById('simTargetTicker');
     const simTargetTickerManual = document.getElementById('simTargetTickerManual');
     
@@ -675,26 +686,33 @@ async function runSimulation() {
     showLoading(true);
     
     try {
-        const payload = {
-            ticker,
-            start_date: startDate,
-            end_date: endDate || null,
-            seed_amt: seedAmt,
-            safe_buy_pct: safeBuyPct,
-            safe_sell_pct: safeSellPct,
-            agg_buy_pct: aggBuyPct,
-            agg_sell_pct: aggSellPct,
-            split_count: splitCount,
-            update_period: updatePeriod,
-            compounding_profit_rate: compoundingProfitRate,
-            compounding_loss_rate: compoundingLossRate
-        };
-        
-        const res = await fetch('/api/v1/backtest', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
+        let res;
+        if (taskId) {
+            res = await fetch(`/api/v1/tasks/${taskId}/matching`, {
+                method: 'GET'
+            });
+        } else {
+            const payload = {
+                ticker,
+                start_date: startDate,
+                end_date: endDate || null,
+                seed_amt: seedAmt,
+                safe_buy_pct: safeBuyPct,
+                safe_sell_pct: safeSellPct,
+                agg_buy_pct: aggBuyPct,
+                agg_sell_pct: aggSellPct,
+                split_count: splitCount,
+                update_period: updatePeriod,
+                compounding_profit_rate: compoundingProfitRate,
+                compounding_loss_rate: compoundingLossRate
+            };
+            
+            res = await fetch('/api/v1/backtest', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+        }
         
         if (!res.ok) {
             const errData = await res.json().catch(() => ({}));

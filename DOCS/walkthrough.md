@@ -34,9 +34,15 @@
   - 디버그 테스트 스크립트 (`Debug/004.debug_backtest_test.py`) 작성 및 수익률/MDD 계산 알고리즘 검증 완료.
   - FastAPI `/api/v1/backtest` POST API 엔드포인트 구현 (`main.py` 수정).
   - 웹 대시보드 시뮬레이터 UI 및 Task 동적 바인딩 기능 구현 (`web/index.html` 및 `web/app.js` 수정).
-  - 프로그램 버전을 `1.18.0`으로 일괄 상향 조정 (`config/version.json` 및 `web/app.js` 버전 동기화).
+  - 실제 운영 중인 Task의 실시간 체결 데이터를 기반으로 매매 대조표(17열 대조표)를 조립하는 `BacktestAssembler` 기능 보완 (KeyError: 'sellQty' 버그 해결 및 일자별 총자산/평가금액/MDD 동적 계산 로직 탑재).
+  - FastAPI 신규 GET API 엔드포인트 `/api/v1/tasks/{task_id}/matching` 구현.
+  - 웹 대시보드 시뮬레이터 탭에서 운영 중인 Task 선택 시 매칭 테이블 조회 API를 호출하여 실제 진행 상황이 테이블 및 그래프에 연동되도록 프론트엔드(`web/app.js`) 구현 완료.
+  - 프로그램 버전을 `1.19.0`으로 일괄 상향 조정 (`config/version.json` 및 `web/app.js` 버전 동기화).
+  - 디버그용 검증 스크립트 `Debug/006.debug_assembler_report_test.py` 생성 및 검증 완료.
+  - `web/app.js` 로딩 시 존재하지 않는 엘리먼트에 리스너를 바인딩하여 발생하던 `TypeError` 방지용 예외 처리(방어적 코드) 추가.
   - 백테스트 기능 설계 사양서 (`DOCS/task_backtest_details.md`) 신규 생성.
 * **이슈 및 비고**:
   - 기존 구글 시트 연동 기반의 백테스트를 파이썬 서버 엔진 기반으로 완전 포팅함으로써 구글 시트 로딩 딜레이 및 Oauth 권한 승인 필수 요건 제거 성공.
   - 대시보드 내에 시뮬레이터 탭을 다시 추가하고, 상단에 '운영 중인 Task 설정 불러오기' 기능을 구현하여 편리하게 봇별 백테스트 실행 및 일자별 상세 내역(테이블 및 자산 차트) 연동 완료.
+  - 실제 운영 Task를 선택해 백테스트를 돌릴 때 단순 과거 백테스트 외에 실시간 체결 데이터를 역산하여 정확한 17열 매매 대조표와 자산 변동 그래프를 조회할 수 있게 연동하여, 구글 시트 엑셀의 완전한 포팅을 마무리함.
 
