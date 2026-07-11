@@ -1,7 +1,9 @@
 {
-    "version": "1.0.0",
-    "last_updated": "2026-07-10",
+    "version": "1.18.0",
+    "last_updated": "2026-07-11",
     "changes": [
-        "프로젝트 초기 구조 생성 및 OCI 이식 기반 세팅 완료"
+        "프로젝트 초기 구조 생성 및 OCI 이식 기반 세팅 완료",
+        "서버 사이드 백테스트 엔진(yfinance QQQ RSI 매핑) 및 /api/v1/backtest API 구현",
+        "웹 대시보드 시뮬레이터 탭 추가 및 운영 중인 Task별 백테스트 상세 조회 기능 구현"
     ]
 }

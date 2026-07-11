@@ -26,6 +26,29 @@ class TelegramBot:
                 if self.allowed_chat_id:
                     self.allowed_chat_id = str(self.allowed_chat_id)
 
+    async def send_message(self, text: str):
+        """
+        비동기적으로 텔레그램 메시지를 전송합니다.
+        """
+        if not self.token or not self.allowed_chat_id:
+            log_error("텔레그램 토큰 또는 Chat ID가 없어 메시지를 전송할 수 없습니다.")
+            return False
+            
+        try:
+            import requests
+            url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+            payload = {
+                "chat_id": self.allowed_chat_id,
+                "text": text,
+                "parse_mode": "HTML"
+            }
+            # 간단한 알림 전송은 requests로 동기/비동기 혼용 방지 및 단순 처리
+            response = requests.post(url, json=payload, timeout=5)
+            return response.status_code == 200
+        except Exception as e:
+            log_error(f"텔레그램 메시지 전송 실패: {e}")
+            return False
+
     async def verify_user(self, update: Update) -> bool:
         chat_id = str(update.message.chat_id)
         if chat_id != self.allowed_chat_id:

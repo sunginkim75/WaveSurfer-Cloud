@@ -31,9 +31,12 @@ class KiwoomAPIClient:
             config_path = os.path.join(base_dir, "config", "config.json")
         
         self.config_path = config_path
-        self.accounts = {}  # {acct_no: {appkey: ..., secretkey: ...}}
+        self.accounts = {}  # {acct_no: account_name}
         self.mode = "mock"  # "mock" or "real"
+        self.appkey = ""
+        self.secretkey = ""
         self.tokens = {}    # {acct_no: {"token": ..., "expiry": ...}}
+        self._exchange_cache = {}  # {symbol: stex_tp} - 종목별 거래소 캐시
 
         self.load_config()
 
@@ -44,9 +47,10 @@ class KiwoomAPIClient:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
                 
-                api_settings = config.get("kiwoom_api", {})
-                self.mode = api_settings.get("mode", "mock").lower()
-                self.accounts = api_settings.get("accounts", {})
+                self.mode = config.get("server", {}).get("mode", "mock").lower()
+                self.appkey = config.get("kiwoom", {}).get("app_key", "")
+                self.secretkey = config.get("kiwoom", {}).get("app_secret", "")
+                self.accounts = config.get("accounts", {})
                 log_info(f"Kiwoom API Client 설정 로드 완료 (모드: {self.mode}, 등록 계좌 수: {len(self.accounts)})")
             else:
                 log_error(f"설정 파일({self.config_path})을 찾을 수 없습니다.")
@@ -75,17 +79,11 @@ class KiwoomAPIClient:
 
         log_info(f"[{acct_no}] 계좌 접근 토큰 발급/갱신 요청 시도...")
         
-        # Get credentials for this specific account
-        acct_keys = self.accounts.get(acct_no)
-        if not acct_keys:
-            log_error(f"계좌번호 '{acct_no}'에 해당하는 API Key 설정을 config.json에서 찾을 수 없습니다.")
-            return ""
-
-        appkey = acct_keys.get("appkey", "")
-        secretkey = acct_keys.get("secretkey", "")
+        appkey = self.appkey
+        secretkey = self.secretkey
 
         if not appkey or not secretkey:
-            log_error(f"계좌번호 '{acct_no}'의 AppKey 또는 SecretKey가 비어 있습니다.")
+            log_error(f"Kiwoom AppKey 또는 SecretKey가 config.json에 설정되지 않았습니다.")
             return ""
 
         url = f"{self.base_url}/oauth2/token"
@@ -165,7 +163,80 @@ class KiwoomAPIClient:
         
         return None
 
-    def send_us_order(self, acct_no, is_buy=True, exchange="ND", symbol="", qty=0, price=0.0, order_type="00"):
+    def get_exchange_for_symbol(self, acct_no, symbol):
+        """
+        종목코드에 맞는 거래소 구분(stex_tp)을 반환.
+        - 알려진 종목은 하드코딩 테이블에서 즉시 반환 (API 호출 없음)
+        - 그 외 종목은 키움 API(USA10099)로 자동 조회 후 캐시
+        - 조회 실패 시 'NY' 기본값 반환
+        """
+        symbol = symbol.upper().strip()
+
+        # ── 하드코딩 테이블 (자주 쓰는 종목) ──────────────────────────
+        KNOWN_EXCHANGE = {
+            # NYSE Arca (NY) ETF
+            "SOXL": "NY", "SOXS": "NY",
+            "TQQQ": "NY", "SQQQ": "NY",
+            "SPXL": "NY", "SPXS": "NY",
+            "LABU": "NY", "LABD": "NY",
+            "FNGU": "NY", "FNGD": "NY",
+            "TECL": "NY", "TECS": "NY",
+            "UPRO": "NY", "SPXU": "NY",
+            "TNA":  "NY", "TZA":  "NY",
+            "UDOW": "NY", "SDOW": "NY",
+            "FAS":  "NY", "FAZ":  "NY",
+            "CURE": "NY", "ERX":  "NY",
+            "SPY":  "NY", "QQQ":  "ND",
+            "IWM":  "NY", "DIA":  "NY",
+            "GLD":  "NY", "SLV":  "NY",
+            # NASDAQ (ND)
+            "AAPL": "ND", "MSFT": "ND", "NVDA": "ND",
+            "AMZN": "ND", "META": "ND", "GOOG": "ND",
+            "TSLA": "ND", "AVGO": "ND",
+            # NYSE (NY)
+            "BRK.B": "NY", "JPM": "NY", "V": "NY",
+        }
+
+        if symbol in KNOWN_EXCHANGE:
+            log_info(f"[{symbol}] 거래소 하드코딩 테이블 사용: {KNOWN_EXCHANGE[symbol]}")
+            return KNOWN_EXCHANGE[symbol]
+
+        # ── 캐시 확인 ──────────────────────────────────────────────────
+        if symbol in self._exchange_cache:
+            return self._exchange_cache[symbol]
+
+        # ── API 자동 조회 (USA10099) ────────────────────────────────────
+        acct_no = str(acct_no).strip()
+        token = self.get_token(acct_no)
+        if not token:
+            log_error(f"거래소 조회용 토큰 없음. 기본값 NY 사용.")
+            return "NY"
+
+        for exch in ["ND", "NY", "NA"]:
+            url = f"{self.base_url}/api/us/stk"
+            headers = {
+                "Content-Type": "application/json;charset=UTF-8",
+                "api-id": "USA10099",
+                "authorization": f"Bearer {token}"
+            }
+            body = {"stex_tp": exch, "stk_cd": symbol}
+            try:
+                resp = requests.post(url, headers=headers, json=body, timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("return_code") == 0 and data.get("stk_cd"):
+                        log_info(f"[{symbol}] 거래소 API 조회 성공: {exch}")
+                        self._exchange_cache[symbol] = exch
+                        return exch
+            except Exception as e:
+                log_exception(f"거래소 조회 중 예외: {e}")
+
+        log_error(f"[{symbol}] 거래소 API 조회 실패. 기본값 NY 사용.")
+        self._exchange_cache[symbol] = "NY"
+        return "NY"
+
+
+    def send_us_order(self, acct_no, is_buy=True, exchange=None, symbol="", qty=0, price=0.0, order_type="00"):
         """
         미국주식 주문 집행 (ust20000: 매수, ust20001: 매도)
         - acct_no: 10자리 계좌번호
@@ -182,6 +253,18 @@ class KiwoomAPIClient:
             log_error(f"[{acct_no}] 유효한 토큰이 없어 주문을 집행할 수 없습니다.")
             return None
 
+        # exchange가 지정되지 않은 경우 자동 조회 (하드코딩 테이블 우선, 없으면 API)
+        if not exchange:
+            exchange = self.get_exchange_for_symbol(acct_no, symbol)
+
+        # ── mock 모드에서는 LOC(30)/MOC(34) → 지정가(00)로 자동 변환 ──
+        # 모의투자는 LOC/MOC 주문이 장마감 직전 특정 시간대에만 접수되므로
+        # 테스트 편의를 위해 지정가로 대체
+        effective_order_type = order_type
+        if self.mode == "mock" and order_type in ["30", "34"]:
+            effective_order_type = "00"
+            log_info(f"[mock] 주문유형 {order_type}(LOC/MOC) → 00(지정가)로 자동 변환")
+
         api_id = "ust20000" if is_buy else "ust20001"
         url = f"{self.base_url}/api/us/ordr"
         headers = {
@@ -194,13 +277,13 @@ class KiwoomAPIClient:
             "stex_tp": exchange,
             "stk_cd": symbol.upper().strip(),
             "ord_qty": str(qty),
-            "ord_uv": str(price) if order_type not in ["03", "36", "37"] else "", # 시장가는 단가 빈값 처리
-            "trde_tp": order_type
+            "ord_uv": str(price) if effective_order_type not in ["03", "36", "37"] else "",
+            "trde_tp": effective_order_type
         }
 
         try:
             action_str = "매수" if is_buy else "매도"
-            log_info(f"[{acct_no}] 미국주식 {action_str} 주문 요청 ({symbol}, {qty}주, 단가: {price}, 유형: {order_type})")
+            log_info(f"[{acct_no}] 미국주식 {action_str} 주문 요청 ({symbol}, {qty}주, 단가: {price}, 유형: {effective_order_type}, 거래소: {exchange})")
             response = requests.post(url, headers=headers, json=body, timeout=10)
             if response.status_code == 200:
                 return response.json()

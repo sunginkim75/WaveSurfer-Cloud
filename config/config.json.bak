@@ -37,24 +37,6 @@
             "compounding_profit_rate": 80,
             "compounding_loss_rate": 30,
             "is_active": true
-        },
-        {
-            "id": "task_10eacd1c",
-            "account_no": "61109250",
-            "nickname": "YS_WS",
-            "strategy": "SURFER_BATCH",
-            "ticker": "SOXL",
-            "rsi_ticker": "QQQ",
-            "seed_amt": 10000,
-            "safe_buy_pct": 3.0,
-            "safe_sell_pct": 0.2,
-            "agg_buy_pct": 5.0,
-            "agg_sell_pct": 2.5,
-            "split_count": 7,
-            "update_period": 10,
-            "compounding_profit_rate": 80,
-            "compounding_loss_rate": 30,
-            "is_active": true
         }
     ],
     "global_settings": {
