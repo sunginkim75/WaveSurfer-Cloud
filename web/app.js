@@ -1,6 +1,7 @@
-const APP_VERSION = '1.19.0';
+const APP_VERSION = '1.21.0';
 let tasksData = [];
 let simulationChart = null;
+let matchingChart = null;
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -18,15 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSimulator();
 
     
-    // 2. Load Global Data
-    loadGlobalSettings();
-    
-    // 3. Check Auth (Mocked for now since backend is open)
-    document.getElementById('welcomeScreen').style.display = 'none';
-    document.getElementById('mainDashboard').style.display = 'block';
-    
-    // 4. Load Main Content
-    refreshAllData();
+    // 2. Check Auth and Initialize
+    checkAuthAndInit();
 
     // Setup Global Buttons
     const refreshBtn = document.getElementById('refreshBtn');
@@ -118,7 +112,7 @@ async function loadTasks() {
     }
 }
 
-function renderPortfolioList(tasks) {
+async function renderPortfolioList(tasks) {
     const container = document.getElementById('portfolioTaskList');
     container.innerHTML = '';
     
@@ -130,11 +124,56 @@ function renderPortfolioList(tasks) {
         return;
     }
     
-    tasks.forEach(task => {
+    for (const task of tasks) {
+        let batchInfoHTML = '<div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.5rem;">배치 정보 로딩 중...</div>';
+        let currentMode = '안전모드';
+        let activeBatchesCount = 0;
+        
+        try {
+            const res = await fetch(`/api/v1/tasks/${task.id}/batches`);
+            if (res.ok) {
+                const data = await res.json();
+                const batches = data.batches || [];
+                activeBatchesCount = batches.length;
+                if (batches.length > 0) {
+                    const totalQty = batches.reduce((sum, b) => sum + (b.qty || 0), 0);
+                    const totalCost = batches.reduce((sum, b) => sum + ((b.qty || 0) * (b.buyPrice || 0)), 0);
+                    const avgPrice = totalQty > 0 ? (totalCost / totalQty) : 0;
+                    currentMode = batches[batches.length - 1].buyMode || '안전모드';
+                    
+                    const modeBadge = currentMode === '공세모드' ? 
+                        '<span style="background: rgba(255, 75, 75, 0.15); color: #ff4b4b; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.68rem; margin-left: 6px;">공세 🔥</span>' : 
+                        '<span style="background: rgba(0, 242, 254, 0.15); color: var(--neon-blue); padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.68rem; margin-left: 6px;">안전 🛡️</span>';
+
+                    batchInfoHTML = `
+                        <div style="margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 0.25rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
+                                <span style="color: var(--text-muted);">진행 상태:</span>
+                                <span style="color: #fff; font-weight: 600;">${batches.length} / ${task.split_count}회차 매수 완료 ${modeBadge}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
+                                <span style="color: var(--text-muted);">보유량 / 평단:</span>
+                                <span style="color: #fff; font-weight: 600;">${totalQty}주 / $${avgPrice.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    batchInfoHTML = `
+                        <div style="margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.75rem; color: var(--text-muted); text-align: center;">
+                            대기 중 (진행 중인 사이클 없음)
+                        </div>
+                    `;
+                }
+            }
+        } catch (e) {
+            batchInfoHTML = '<div style="font-size: 0.72rem; color: var(--danger); margin-top: 0.5rem;">배치 정보 로드 실패</div>';
+        }
+
         const card = document.createElement('div');
         card.className = 'glass-card';
         card.style.padding = '1rem';
-        card.style.cursor = 'pointer';
+        card.style.cursor = 'default';
+        card.style.transition = 'border-color 0.2s';
         card.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -153,20 +192,41 @@ function renderPortfolioList(tasks) {
                     <i data-lucide="settings" style="width:14px; height:14px;"></i>
                 </button>
             </div>
+            ${batchInfoHTML}
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                <button class="btn btn-outline show-batches-btn" style="flex: 1; font-size: 0.72rem; padding: 0.4rem 0.5rem; justify-content: center;">
+                    <i data-lucide="box" style="width:12px; height:12px; margin-right:4px;"></i>보유 배치 (${activeBatchesCount})
+                </button>
+                <button class="btn btn-primary show-matching-btn" style="flex: 1; font-size: 0.72rem; padding: 0.4rem 0.5rem; justify-content: center; background: rgba(0, 242, 254, 0.15); border-color: var(--neon-blue); color: #fff;">
+                    <i data-lucide="table-properties" style="width:12px; height:12px; margin-right:4px; color: var(--neon-blue);"></i>매매 대조표
+                </button>
+            </div>
         `;
         
-        // 클릭하면 상세 모달(배치/사이클) 띄우기
-        card.addEventListener('click', (e) => {
-            if (e.target.closest('.edit-task-btn')) {
-                e.stopPropagation();
-                openTaskModal(task);
-            } else {
-                openBatchModal(task.id);
-            }
+        card.addEventListener('mouseenter', () => { card.style.borderColor = 'rgba(0, 242, 254, 0.2)'; });
+        card.addEventListener('mouseleave', () => { card.style.borderColor = 'rgba(255, 255, 255, 0.08)'; });
+
+        // 버튼 이벤트 바인딩
+        const editBtn = card.querySelector('.edit-task-btn');
+        editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openTaskModal(task);
+        });
+
+        const batchesBtn = card.querySelector('.show-batches-btn');
+        batchesBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openBatchModal(task.id);
+        });
+
+        const matchingBtn = card.querySelector('.show-matching-btn');
+        matchingBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openMatchingModal(task.id, task.nickname || task.id);
         });
         
         container.appendChild(card);
-    });
+    }
     lucide.createIcons();
 }
 
@@ -360,7 +420,8 @@ async function loadGlobalHistory() {
             const color = isBuy ? 'var(--danger)' : 'var(--neon-blue)';
             const typeStr = isBuy ? '매수' : '매도';
             const qty = item.qty || item.quantity || 0;
-            const total = qty * item.price;
+            const price = isBuy ? (item.buyPrice || item.price || 0) : (item.sellPrice || item.price || 0);
+            const total = qty * price;
             
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
@@ -372,7 +433,7 @@ async function loadGlobalHistory() {
                     <div style="font-size: 0.7rem; color: var(--text-muted);">${item.taskName}</div>
                 </td>
                 <td style="padding: 0.75rem; color: #fff;">${qty}</td>
-                <td style="padding: 0.75rem; color: var(--text-muted);">$${item.price.toFixed(2)}</td>
+                <td style="padding: 0.75rem; color: var(--text-muted);">$${price.toFixed(2)}</td>
                 <td style="padding: 0.75rem; color: #fff; font-weight: 600;">$${total.toFixed(2)}</td>
             `;
             tbody.appendChild(tr);
@@ -382,13 +443,15 @@ async function loadGlobalHistory() {
         const copyBtn = document.getElementById('copyHistoryBtn');
         if(copyBtn) {
             copyBtn.onclick = () => {
-                let text = "일자\t구분\t종목\t태스크\t수량\t단가\t총액\n";
+                let text = "일자\t구분\t종목\t태스크\t수량\t단가\t총액\t실현손익\n";
                 allHistory.forEach(item => {
                     const isBuy = (item.type || item.action || '').toUpperCase() === 'BUY';
                     const typeStr = isBuy ? '매수' : '매도';
                     const qty = item.qty || item.quantity || 0;
-                    const total = qty * item.price;
-                    text += `${item.date}\t${typeStr}\t${item.ticker}\t${item.taskName}\t${qty}\t${item.price.toFixed(2)}\t${total.toFixed(2)}\n`;
+                    const price = isBuy ? (item.buyPrice || item.price || 0) : (item.sellPrice || item.price || 0);
+                    const total = qty * price;
+                    const realized = item.realized_profit != null ? item.realized_profit.toFixed(2) : '-';
+                    text += `${item.date}\t${typeStr}\t${item.ticker}\t${item.taskName}\t${qty}\t${price.toFixed(2)}\t${total.toFixed(2)}\t${realized}\n`;
                 });
                 navigator.clipboard.writeText(text).then(() => {
                     alert('엑셀용 데이터가 클립보드에 복사되었습니다. 엑셀에 붙여넣기(Ctrl+V) 하세요.');
@@ -490,6 +553,34 @@ function setupModals() {
     document.getElementById('closeBatchModalBtn').addEventListener('click', () => {
         batchModal.style.display = 'none';
     });
+
+    document.getElementById('closeMatchingModalBtn').addEventListener('click', () => {
+        document.getElementById('matchingModal').style.display = 'none';
+    });
+
+    const tableBtn = document.getElementById('matchingViewTableBtn');
+    const cardBtn = document.getElementById('matchingViewCardBtn');
+    const tableArea = document.getElementById('matchingTableViewArea');
+    const cardArea = document.getElementById('matchingCardViewArea');
+    
+    if (tableBtn && cardBtn && tableArea && cardArea) {
+        tableBtn.addEventListener('click', () => {
+            tableBtn.classList.add('active');
+            tableBtn.style.background = '';
+            cardBtn.classList.remove('active');
+            cardBtn.style.background = 'rgba(255,255,255,0.03)';
+            tableArea.style.display = 'block';
+            cardArea.style.display = 'none';
+        });
+        cardBtn.addEventListener('click', () => {
+            cardBtn.classList.add('active');
+            cardBtn.style.background = '';
+            tableBtn.classList.remove('active');
+            tableBtn.style.background = 'rgba(255,255,255,0.03)';
+            tableArea.style.display = 'none';
+            cardArea.style.display = 'block';
+        });
+    }
     
     document.getElementById('taskModalSaveBtn').addEventListener('click', async () => {
         const payload = {
@@ -931,23 +1022,73 @@ async function openBatchModal(taskId) {
             const data = await res.json();
             const batches = data.batches || [];
             if (batches.length === 0) {
-                content.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted);">진행 중인 사이클이 없습니다.</div>';
+                content.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted);">진행 중인 사이클이 없습니다. (보유 중인 매수 배치가 없습니다)</div>';
                 return;
             }
             
             content.innerHTML = '';
+            
+            // 전체 배치 요약 정보 계산
+            const totalQty = batches.reduce((sum, b) => sum + (b.qty || 0), 0);
+            const totalCost = batches.reduce((sum, b) => sum + ((b.qty || 0) * (b.buyPrice || 0)), 0);
+            const avgPrice = totalQty > 0 ? (totalCost / totalQty) : 0;
+            
+            // 요약 헤더 추가
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'glass-card';
+            summaryDiv.style.background = 'rgba(0, 242, 254, 0.05)';
+            summaryDiv.style.border = '1px solid rgba(0, 242, 254, 0.2)';
+            summaryDiv.style.padding = '0.75rem 1rem';
+            summaryDiv.style.marginBottom = '0.5rem';
+            summaryDiv.style.borderRadius = '8px';
+            summaryDiv.innerHTML = `
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">통합 요약</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.4rem; font-size: 0.8rem;">
+                    <div><span style="color: var(--text-muted);">총 수량:</span> <span style="color: #fff; font-weight: 700;">${totalQty}주</span></div>
+                    <div><span style="color: var(--text-muted);">평균 단가:</span> <span style="color: #fff; font-weight: 700;">$${avgPrice.toFixed(2)}</span></div>
+                </div>
+            `;
+            content.appendChild(summaryDiv);
+            
             batches.forEach((batch, index) => {
                 const card = document.createElement('div');
                 card.style.background = 'rgba(255,255,255,0.03)';
                 card.style.border = '1px solid rgba(255,255,255,0.08)';
                 card.style.borderRadius = '8px';
                 card.style.padding = '1rem';
+                card.style.display = 'flex';
+                card.style.justifyContent = 'space-between';
+                card.style.alignItems = 'center';
+                
+                const isAggressive = batch.buyMode === '공세모드';
+                const limitDays = isAggressive ? 7 : 30;
+                const cycleDays = batch.cycleDays || 0;
+                const isUrgent = cycleDays >= (limitDays - 2); // 만기 2일 전부터 청산 임박
+                
+                const modeBadge = isAggressive ? 
+                    '<span style="background: rgba(255, 75, 75, 0.15); color: #ff4b4b; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.65rem;">공세 🔥</span>' : 
+                    '<span style="background: rgba(0, 242, 254, 0.15); color: var(--neon-blue); padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.65rem;">안전 🛡️</span>';
+                
+                const urgentBadge = isUrgent ? 
+                    `<span style="background: rgba(255, 51, 102, 0.2); color: #ff3366; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.65rem; border: 1px solid rgba(255, 51, 102, 0.4); margin-left: 5px;">청산 임박 🚨</span>` : '';
+                
                 card.innerHTML = `
-                    <div style="font-weight:700; font-size:0.85rem; color:var(--text-primary); margin-bottom:0.5rem;">[${index+1}회차 사이클] ${batch.start_date || '진행중'}</div>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">
-                        평단가: $${batch.avg_price ? batch.avg_price.toFixed(2) : '0.00'}<br>
-                        수량: ${batch.total_quantity || 0}<br>
-                        모드: ${batch.mode === 'AGGRESSIVE' ? '<span style="color:var(--danger);">공세모드</span>' : '<span style="color:var(--neon-blue);">안전모드</span>'}
+                    <div>
+                        <div style="font-weight:700; font-size:0.85rem; color:#fff; display: flex; align-items: center; gap: 0.4rem;">
+                            <span>[${index+1}회차 배치]</span> 
+                            ${modeBadge}
+                            ${urgentBadge}
+                        </div>
+                        <div style="font-size:0.75rem; color:var(--text-muted); margin-top: 0.4rem; line-height: 1.4;">
+                            매수 단가: <span style="color: #fff; font-weight: 600;">$${(batch.buyPrice || 0).toFixed(2)}</span><br>
+                            매수 수량: <span style="color: #fff; font-weight: 600;">${batch.qty || 0}주</span> (총 $${((batch.qty || 0) * (batch.buyPrice || 0)).toFixed(2)})<br>
+                            매수 일자: <span style="color: var(--text-secondary);">${batch.buyDate || '-'}</span>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 0.65rem; color: var(--text-muted);">경과일수</div>
+                        <div style="font-size: 1.2rem; font-weight: 800; color: ${isUrgent ? '#ff3366' : 'var(--text-primary)'}; font-family: var(--font-title);">D+${cycleDays}</div>
+                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 2px;">만기 ${limitDays}일</div>
                     </div>
                 `;
                 content.appendChild(card);
@@ -956,5 +1097,364 @@ async function openBatchModal(taskId) {
     } catch (e) {
         content.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--danger);">오류가 발생했습니다.</div>';
     }
+}
+
+async function checkAuthAndInit() {
+    const savedPasscode = localStorage.getItem('ws_passcode');
+    if (savedPasscode) {
+        showLoading(true);
+        const verified = await verifyPasscode(savedPasscode);
+        showLoading(false);
+        if (verified) {
+            initDashboard();
+            return;
+        }
+    }
+    
+    // 인증 실패 또는 패스코드 없음 -> 로그인 화면 표시
+    document.getElementById('welcomeScreen').style.display = 'flex';
+    document.getElementById('mainDashboard').style.display = 'none';
+    setupLoginEvents();
+}
+
+async function verifyPasscode(passcode) {
+    try {
+        const res = await fetch('/api/v1/auth/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ passcode })
+        });
+        return res.ok;
+    } catch (e) {
+        console.error("Auth verify error:", e);
+        return false;
+    }
+}
+
+function initDashboard() {
+    document.getElementById('welcomeScreen').style.display = 'none';
+    document.getElementById('mainDashboard').style.display = 'block';
+    
+    // 대시보드 로드
+    loadGlobalSettings();
+    refreshAllData();
+}
+
+function setupLoginEvents() {
+    const loginBtn = document.getElementById('loginBtn');
+    const passcodeInput = document.getElementById('passcodeInput');
+    const loginError = document.getElementById('loginErrorMessage');
+    
+    if (!loginBtn || !passcodeInput) return;
+    
+    // 기존 이벤트 리스너 제거 위해 클론 처리 방지 및 단순 할당
+    const handleLogin = async () => {
+        const passcode = passcodeInput.value.trim();
+        if (!passcode) return;
+        
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<i data-lucide="loader" style="width:14px;height:14px;margin-right:3px;animation:spin 1s linear infinite;"></i>접속 중...';
+        lucide.createIcons();
+        
+        const verified = await verifyPasscode(passcode);
+        if (verified) {
+            localStorage.setItem('ws_passcode', passcode);
+            loginError.style.display = 'none';
+            initDashboard();
+        } else {
+            loginError.style.display = 'block';
+            passcodeInput.value = '';
+            passcodeInput.focus();
+        }
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = '<i data-lucide="key-round" style="width:16px;height:16px;"></i> 접속하기';
+        lucide.createIcons();
+    };
+    
+    loginBtn.onclick = handleLogin;
+    passcodeInput.onkeypress = (e) => {
+        if (e.key === 'Enter') {
+            handleLogin();
+        }
+    };
+}
+
+async function openMatchingModal(taskId, nickname) {
+    const matchingModal = document.getElementById('matchingModal');
+    const tbody = document.getElementById('matchingDetailTableBody');
+    const titleEl = document.getElementById('matchingModalTitle');
+    
+    titleEl.innerHTML = `<i data-lucide="table-properties" style="color: var(--neon-blue); width: 20px; height: 20px;"></i><span>${nickname} - 실제 투자 매매 대조표</span>`;
+    tbody.innerHTML = '<tr><td colspan="17" style="padding: 1rem; text-align: center; color: var(--text-muted);">매매 대조표 데이터를 불러오는 중...</td></tr>';
+    matchingModal.style.display = 'flex';
+    lucide.createIcons();
+    
+    try {
+        const res = await fetch(`/api/v1/tasks/${taskId}/matching`);
+        if (!res.ok) throw new Error('데이터 조회 실패');
+        
+        const result = await res.json();
+        
+        // 1. 요약 정보 렌더링
+        const summary = result.summary || { totalReturn: 0, mdd: 0, realizedProfitVal: 0, totalAsset: 0 };
+        
+        const trEl = document.getElementById('matchingTotalReturn');
+        trEl.innerText = `${summary.totalReturn >= 0 ? '+' : ''}${summary.totalReturn.toFixed(2)}%`;
+        trEl.className = summary.totalReturn >= 0 ? 'text-up font-title' : 'text-down font-title';
+        
+        const mddEl = document.getElementById('matchingMDD');
+        mddEl.innerText = `${summary.mdd.toFixed(2)}%`;
+        
+        const rpEl = document.getElementById('matchingRealizedProfit');
+        rpEl.innerText = `$${summary.realizedProfitVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        rpEl.className = summary.realizedProfitVal >= 0 ? 'text-up font-title' : 'text-down font-title';
+        
+        const caEl = document.getElementById('matchingCurrentAsset');
+        caEl.innerText = `$${summary.totalAsset.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        
+        // 2. 테이블 렌더링
+        const txTable = result.detailedTxTable || [];
+        if (txTable.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="17" style="padding:1rem; text-align:center; color:var(--text-muted);">거래 내역이 없습니다.</td></tr>';
+        } else {
+            const formatCurrency = (val, symbol = '$', decimals = 2) => {
+                if (val === undefined || val === '' || val === null || val === '-') return '-';
+                return `${symbol}${parseFloat(val).toLocaleString(undefined, {minimumFractionDigits: decimals, maximumFractionDigits: decimals})}`;
+            };
+            
+            tbody.innerHTML = txTable.map(r => {
+                const modeColor = r.mode.includes('공세') ? 'color: var(--danger); font-weight:700;' : 'color: var(--success); font-weight:700;';
+                const buyColor = r.buyQty ? 'background: rgba(0, 230, 118, 0.04); font-weight:600;' : '';
+                const sellColor = r.sellQty ? 'background: rgba(255, 23, 68, 0.04); font-weight:600;' : '';
+                const compoundingColor = r.compoundingAmt ? 'background: rgba(157, 78, 221, 0.08); font-weight:700;' : '';
+                
+                return `
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                      <td class="sticky-col" style="padding: 0.45rem 0.4rem; font-weight:600; text-align:center;">${r.date}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right;">${formatCurrency(r.close, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:center; ${modeColor}">${r.mode}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right;">${formatCurrency(r.buyLimitAmt, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:center; ${buyColor}">${r.buyQty || '-'}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right; ${buyColor}">${formatCurrency(r.buyAmt, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right;">${formatCurrency(r.targetSell, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:center; ${sellColor}">${r.sellDate || '-'}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right; ${sellColor}">${formatCurrency(r.sellPrice, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:center; ${sellColor}">${r.sellQty || '-'}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right; ${sellColor}">${formatCurrency(r.sellAmt, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right;">${formatCurrency(r.cash, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right; color: var(--success); font-weight:700;">${formatCurrency(r.todayRealized, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right; color: var(--success);">${formatCurrency(r.profitAmt, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right; font-weight:700;">${formatCurrency(r.accumProfit, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right; color: #a29bfe; ${compoundingColor}">${formatCurrency(r.compoundingAmt, '$', 2)}</td>
+                      <td style="padding: 0.45rem 0.4rem; text-align:right; color: #e84393; ${compoundingColor}">${formatCurrency(r.updatedCompoundingCash, '$', 2)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // 3. 모바일 카드 뷰 렌더링
+        renderMatchingCardView(txTable);
+        
+        // 4. 차트 렌더링
+        renderMatchingChart(result.history || []);
+        
+        // 5. 디바이스 해상도에 따른 뷰 토글 기본 선택
+        if (window.innerWidth < 600) {
+            document.getElementById('matchingViewCardBtn').click();
+        } else {
+            document.getElementById('matchingViewTableBtn').click();
+        }
+        
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = `<tr><td colspan="17" style="padding:1rem; text-align:center; color:var(--danger);">데이터를 로드하는 중 오류가 발생했습니다: ${e.message}</td></tr>`;
+    }
+}
+
+function renderMatchingCardView(txTable) {
+    const container = document.getElementById('matchingCardContainer');
+    if (!container) return;
+    
+    if (!txTable || txTable.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted);">거래 내역이 없습니다.</div>';
+        return;
+    }
+    
+    const formatCurrency = (val, symbol = '$', decimals = 2) => {
+        if (val === undefined || val === '' || val === null || val === '-') return '-';
+        return `${symbol}${parseFloat(val).toLocaleString(undefined, {minimumFractionDigits: decimals, maximumFractionDigits: decimals})}`;
+    };
+    
+    container.innerHTML = txTable.map((r, i) => {
+        const isBuy = !!r.buyQty;
+        const isSell = !!r.sellQty;
+        
+        let typeBadge = '';
+        if (isBuy && isSell) {
+            typeBadge = '<span style="background:rgba(157,78,221,0.15); color:#9d4edd; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.65rem; margin-left:5px;">매수&매도 🔄</span>';
+        } else if (isBuy) {
+            typeBadge = '<span style="background:rgba(0,230,118,0.15); color:var(--success); padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.65rem; margin-left:5px;">매수 체결 📥</span>';
+        } else if (isSell) {
+            typeBadge = '<span style="background:rgba(255,23,68,0.15); color:var(--danger); padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.65rem; margin-left:5px;">매도 체결 📤</span>';
+        } else {
+            typeBadge = '<span style="background:rgba(255,255,255,0.05); color:var(--text-muted); padding:2px 6px; border-radius:4px; font-weight:500; font-size:0.65rem; margin-left:5px;">미체결 ⚪</span>';
+        }
+        
+        const modeBadge = r.mode.includes('공세') ? 
+            '<span style="background:rgba(255,75,75,0.15); color:#ff4b4b; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.65rem;">공세 🔥</span>' : 
+            '<span style="background:rgba(0,242,254,0.15); color:var(--neon-blue); padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.65rem;">안전 🛡️</span>';
+
+        return `
+            <div class="matching-card" id="mcard_${i}">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-weight:700; font-size:0.82rem; color:#fff; display:flex; align-items:center; gap:0.3rem;">
+                            <span>${r.date}</span>
+                            ${modeBadge}
+                            ${typeBadge}
+                        </div>
+                        <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.3rem;">
+                            종가: <span style="color:#fff; font-weight:600;">${formatCurrency(r.close)}</span> • 
+                            예수금: <span style="color:var(--text-primary); font-weight:600;">${formatCurrency(r.cash)}</span>
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="font-size:0.6rem; color:var(--text-muted); display:block;">실현손익</span>
+                        <span style="font-size:0.85rem; font-weight:800; color:${r.todayRealized > 0 ? 'var(--success)' : (r.todayRealized < 0 ? 'var(--danger)' : 'var(--text-primary)')};">${r.todayRealized > 0 ? '+' : ''}${formatCurrency(r.todayRealized)}</span>
+                    </div>
+                </div>
+                
+                <div class="matching-card-detail">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem; line-height:1.5; margin-top: 0.2rem;">
+                        <div><span style="color:var(--text-muted);">LOC 매수예정:</span> <span style="color:#fff;">${formatCurrency(r.buyLimitAmt)}</span></div>
+                        <div><span style="color:var(--text-muted);">매수 수량:</span> <span style="color:#fff;">${r.buyQty || '0'}주</span></div>
+                        <div><span style="color:var(--text-muted);">매수 체결금:</span> <span style="color:#fff;">${formatCurrency(r.buyAmt)}</span></div>
+                        <div><span style="color:var(--text-muted);">매도 목표가:</span> <span style="color:#fff;">${formatCurrency(r.targetSell)}</span></div>
+                        
+                        <div><span style="color:var(--text-muted);">매도 일자:</span> <span style="color:#fff;">${r.sellDate || '-'}</span></div>
+                        <div><span style="color:var(--text-muted);">매도 단가:</span> <span style="color:#fff;">${formatCurrency(r.sellPrice)}</span></div>
+                        <div><span style="color:var(--text-muted);">매도 수량:</span> <span style="color:#fff;">${r.sellQty || '0'}주</span></div>
+                        <div><span style="color:var(--text-muted);">매도 체결금:</span> <span style="color:#fff;">${formatCurrency(r.sellAmt)}</span></div>
+                        
+                        <div><span style="color:var(--text-muted);">당일손익:</span> <span style="color:var(--success); font-weight:600;">${formatCurrency(r.profitAmt)}</span></div>
+                        <div><span style="color:var(--text-muted);">누적손익:</span> <span style="color:#fff; font-weight:600;">${formatCurrency(r.accumProfit)}</span></div>
+                        <div><span style="color:var(--text-muted);">추가 복리금:</span> <span style="color:#a29bfe;">${formatCurrency(r.compoundingAmt)}</span></div>
+                        <div><span style="color:var(--text-muted);">자금 갱신액:</span> <span style="color:#e84393;">${formatCurrency(r.updatedCompoundingCash)}</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // 카드 클릭 이벤트 추가 (아코디언 토글)
+    txTable.forEach((r, i) => {
+        const el = document.getElementById(`mcard_${i}`);
+        if (el) {
+            el.addEventListener('click', () => {
+                el.classList.toggle('active');
+            });
+        }
+    });
+}
+
+function renderMatchingChart(history) {
+    const chartEl = document.querySelector("#matchingAssetChart");
+    if (!chartEl) return;
+    
+    if (matchingChart) {
+        matchingChart.destroy();
+    }
+    
+    if (history.length === 0) return;
+    
+    const categories = history.map(h => h.date);
+    const assetData = history.map(h => Math.round(h.totalAsset));
+    const cashData = history.map(h => Math.round(h.cash));
+    const mddData = history.map(h => parseFloat(h.mdd.toFixed(2)));
+    
+    const options = {
+        series: [
+            { name: '총 자산 가치', type: 'area', data: assetData },
+            { name: '보유 예수금', type: 'line', data: cashData },
+            { name: 'MDD (%)', type: 'line', data: mddData }
+        ],
+        chart: {
+            height: 200,
+            type: 'line',
+            background: 'transparent',
+            toolbar: { show: false }
+        },
+        colors: ['#00f2fe', '#9d4edd', '#ff3366'],
+        stroke: {
+            width: [2, 1.5, 1.5],
+            curve: 'smooth',
+            dashArray: [0, 4, 0]
+        },
+        fill: {
+            type: ['gradient', 'solid', 'solid'],
+            gradient: {
+                type: 'vertical',
+                shadeIntensity: 0.5,
+                inverseColors: false,
+                opacityFrom: [0.15, 0, 0],
+                opacityTo: [0.01, 0, 0],
+                stops: [0, 100]
+            }
+        },
+        xaxis: {
+            categories: categories,
+            labels: {
+                show: true,
+                rotate: -30,
+                rotateAlways: false,
+                style: { colors: '#9aa0a6', fontSize: '9px' },
+                tickAmount: 8
+            },
+            axisBorder: { show: false },
+            axisTicks: { show: false }
+        },
+        yaxis: [
+            {
+                title: { text: '자산 가치 ($)', style: { color: '#9aa0a6', fontSize: '9px' } },
+                labels: {
+                    style: { colors: '#9aa0a6', fontSize: '9px' },
+                    formatter: (val) => `$${Math.round(val).toLocaleString()}`
+                }
+            },
+            {
+                show: false
+            },
+            {
+                opposite: true,
+                title: { text: 'MDD (%)', style: { color: '#ff3366', fontSize: '9px' } },
+                labels: {
+                    style: { colors: '#ff3366', fontSize: '9px' },
+                    formatter: (val) => `${val}%`
+                },
+                min: 0,
+                max: 100,
+                reversed: true
+            }
+        ],
+        grid: {
+            borderColor: 'rgba(255,255,255,0.03)',
+            yaxis: { lines: { show: true } }
+        },
+        legend: {
+            show: true,
+            position: 'top',
+            fontSize: '10px',
+            labels: { colors: '#9aa0a6' }
+        },
+        tooltip: {
+            theme: 'dark',
+            x: { show: true },
+            shared: true,
+            intersect: false
+        }
+    };
+    
+    matchingChart = new ApexCharts(chartEl, options);
+    matchingChart.render();
 }
 

@@ -10,8 +10,6 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- ApexCharts (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-  <!-- Google Identity Services (OAuth2) (CDN) -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <!-- Main Dashboard Script -->
   <script src="app.js?v=2.0.0" defer></script>
 </head>
@@ -19,7 +17,7 @@
   <!-- 로딩 오버레이 -->
   <div id="loadingOverlay" class="loading-overlay">
     <div class="spinner"></div>
-    <div class="loading-text">구글 시트에서 데이터를 불러오는 중...</div>
+    <div class="loading-text">서버에서 데이터를 불러오는 중...</div>
   </div>
   <!-- PC/모바일 통합형 앱 쉘 -->
   <div class="app-shell">
@@ -37,34 +35,21 @@
         <!-- 헤더 액션은 각 탭 내부로 이동 -->
       </div>
     </header>
-    <!-- 웰컴 화면 (연동 설정이 안 되어 있을 때 표시) -->
+    <!-- 패스코드 잠금 화면 -->
     <div id="welcomeScreen" class="glass-card welcome-container">
-      <i data-lucide="shield-check" class="welcome-icon"></i>
-      <h2 class="welcome-title">비공개 구글 시트 연동</h2>
-      <p class="welcome-desc">
-        현재 Wave Surfer는 개인 계정의 비공개 구글 시트를 데이터베이스로 사용하도록 설정되어 있습니다.<br><br>
-        로컬 웹서버(localhost) 또는 보안이 설정된 환경에서 본인의 Google 계정으로 로그인하여 권한을 승인해 주세요.
+      <i data-lucide="lock" class="welcome-icon" style="color: var(--neon-blue); margin-bottom: 1rem;"></i>
+      <h2 class="welcome-title">Wave Surfer Cloud</h2>
+      <p class="welcome-desc" style="margin-bottom: 1.5rem;">
+        시스템에 접속하기 위해 액세스 패스코드를 입력해 주세요.
       </p>
-      <div id="g_id_onload"
-           data-client_id="855734267675-5g7s6v87b1c3n8s7c6g7g8s7c6g7s6.apps.googleusercontent.com"
-           data-context="signin"
-           data-ux_mode="popup"
-           data-callback="handleCredentialResponse"
-           data-auto_prompt="false">
+      <div class="form-group" style="width: 100%; max-width: 300px; margin: 0 auto;">
+        <input type="password" id="passcodeInput" placeholder="Passcode 입력" style="width: 100%; text-align: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.6rem 0.75rem; color: #fff; font-size: 0.95rem; outline: none; font-weight: 600; margin-bottom: 1rem;">
+        <button id="loginBtn" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.6rem; font-weight: 700;">
+          <i data-lucide="key-round" style="width: 16px; height: 16px;"></i> 접속하기
+        </button>
       </div>
-      <div class="g_id_signin"
-           data-type="standard"
-           data-shape="rectangular"
-           data-theme="outline"
-           data-text="signin_with"
-           data-size="large"
-           data-logo_alignment="left">
-      </div>
-      <div style="margin-top: 1.5rem; text-align: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
-        <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.5;">
-          로그인은 Google의 공식 OAuth 팝업을 통해 안전하게 진행되며, 이 앱은 스프레드시트 접근 권한만 요청합니다.<br>
-          동일 브라우저에서는 최초 1회 승인 후 자동으로 연동이 유지됩니다.
-        </p>
+      <div id="loginErrorMessage" style="color: var(--danger); font-size: 0.78rem; margin-top: 0.8rem; font-weight: 600; display: none;">
+        잘못된 패스코드입니다. 다시 시도해 주세요.
       </div>
     </div>
 
@@ -592,5 +577,95 @@
     </div>
   </div>
 
+  <!-- 실제 투자 매매 대조표 (17열) 및 자산 추이 모달 -->
+  <div id="matchingModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div class="glass-card" style="width: 95%; max-width: 1000px; max-height: 90vh; overflow-y: auto; padding: 1.5rem; position: relative;">
+      <button id="closeMatchingModalBtn" style="position: absolute; top: 1rem; right: 1rem; background: transparent; border: none; color: var(--text-muted); cursor: pointer;">
+        <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+      </button>
+      <h3 id="matchingModalTitle" style="margin-top: 0; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="table-properties" style="color: var(--neon-blue); width: 20px; height: 20px;"></i>
+        <span>실제 투자 매매 대조표</span>
+      </h3>
+      
+      <!-- 뷰 모드 토글 바 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">모바일 화면에서는 카드 뷰를 추천합니다.</span>
+        <div style="display: flex; gap: 0.3rem;">
+          <button id="matchingViewTableBtn" class="btn active" style="font-size: 0.65rem; padding: 0.25rem 0.55rem; border-radius: 4px; font-weight: 700;">📊 테이블 뷰</button>
+          <button id="matchingViewCardBtn" class="btn" style="font-size: 0.65rem; padding: 0.25rem 0.55rem; border-radius: 4px; font-weight: 700; background: rgba(255,255,255,0.03);">📱 모바일 카드</button>
+        </div>
+      </div>
+      
+      <!-- 자산 분석 요약 카드 -->
+      <div class="glass-card" style="margin-bottom: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border-color: rgba(255, 255, 255, 0.05);">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; text-align: center;">
+          <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+            <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 500;">누적 복리 수익률</span>
+            <span id="matchingTotalReturn" style="font-size: 1.1rem; font-family: var(--font-title); font-weight: 800; color: var(--text-primary);">-</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+            <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 500;">최대 낙폭 (MDD)</span>
+            <span id="matchingMDD" style="font-size: 1.1rem; font-family: var(--font-title); font-weight: 800; color: var(--danger);">-</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+            <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 500;">실현 손익</span>
+            <span id="matchingRealizedProfit" style="font-size: 1.1rem; font-family: var(--font-title); font-weight: 800; color: var(--text-primary);">-</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+            <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 500;">현재 자산 평가금</span>
+            <span id="matchingCurrentAsset" style="font-size: 1.1rem; font-family: var(--font-title); font-weight: 800; color: var(--success);">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 차트 영역 -->
+      <div class="glass-card chart-card" style="margin-bottom: 1rem; padding: 0.75rem 0.5rem; background: rgba(0,0,0,0.15);">
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.5rem; margin-left: 0.5rem;">실제 자산 가치 및 예수금 변동 추이</div>
+        <div id="matchingAssetChart" style="min-height: 200px;"></div>
+      </div>
+
+      <!-- 1) 17열 매매대조표 테이블 뷰 -->
+      <div id="matchingTableViewArea" class="glass-card" style="padding: 0.5rem; overflow: hidden; background: rgba(0,0,0,0.2);">
+        <div style="overflow-x: auto; max-height: 350px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.72rem; text-align: left; white-space: nowrap;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); color: var(--text-muted); font-size: 0.68rem;">
+                <th class="sticky-col" style="padding: 0.45rem;">거래일자</th>
+                <th style="padding: 0.45rem;">종가</th>
+                <th style="padding: 0.45rem;">매매모드</th>
+                <th style="padding: 0.45rem;">매수예정</th>
+                <th style="padding: 0.45rem;">매수량</th>
+                <th style="padding: 0.45rem;">매수금액</th>
+                <th style="padding: 0.45rem;">목표가</th>
+                <th style="padding: 0.45rem;">매도일</th>
+                <th style="padding: 0.45rem;">매도가</th>
+                <th style="padding: 0.45rem;">매도량</th>
+                <th style="padding: 0.45rem;">매도금액</th>
+                <th style="padding: 0.45rem;">예수금</th>
+                <th style="padding: 0.45rem;">당일실현</th>
+                <th style="padding: 0.45rem;">손익금액</th>
+                <th style="padding: 0.45rem;">누적손익</th>
+                <th style="padding: 0.45rem;">추가복리</th>
+                <th style="padding: 0.45rem;">자금갱신</th>
+              </tr>
+            </thead>
+            <tbody id="matchingDetailTableBody">
+              <tr><td colspan="17" style="padding: 1rem; text-align: center; color: var(--text-muted);">매매 대조표를 가져오는 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 2) 모바일 카드 아코디언 뷰 -->
+      <div id="matchingCardViewArea" style="display: none;">
+        <div id="matchingCardContainer" class="matching-card-container">
+          <!-- JS에서 동적으로 아코디언 카드 렌더링 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
+

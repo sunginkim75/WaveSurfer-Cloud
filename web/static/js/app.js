@@ -1,5 +1,5 @@
 // 기본 상수 설정
-const APP_VERSION = '1.17.1';
+const APP_VERSION = '1.21.0';
 const DEFAULT_CLIENT_ID = '335241298668-25j14dtk9qsc9bl2ij6ugm363kqo3vsk.apps.googleusercontent.com';
 const DEFAULT_SHEET_ID = '1PZvpv4OAzosC4gRbcBR2NcCgbroR2-4VT9A9TmOmr0U';
 
