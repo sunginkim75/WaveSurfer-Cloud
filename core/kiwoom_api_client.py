@@ -48,8 +48,11 @@ class KiwoomAPIClient:
                     config = json.load(f)
                 
                 self.mode = config.get("server", {}).get("mode", "mock").lower()
+                # 하위 호환용 글로벌 백업 key
                 self.appkey = config.get("kiwoom", {}).get("app_key", "")
                 self.secretkey = config.get("kiwoom", {}).get("app_secret", "")
+                
+                # accounts는 이제 {acct_no: {"nickname": "...", "app_key": "...", "app_secret": "..."}} 형태 또는 구버전 {acc_1: "계좌번호"} 형태일 수 있음
                 self.accounts = config.get("accounts", {})
                 log_info(f"Kiwoom API Client 설정 로드 완료 (모드: {self.mode}, 등록 계좌 수: {len(self.accounts)})")
             else:
@@ -79,11 +82,22 @@ class KiwoomAPIClient:
 
         log_info(f"[{acct_no}] 계좌 접근 토큰 발급/갱신 요청 시도...")
         
-        appkey = self.appkey
-        secretkey = self.secretkey
+        # 계좌 개별 정보 획득
+        acct_info = self.accounts.get(acct_no)
+        
+        appkey = ""
+        secretkey = ""
+        
+        if isinstance(acct_info, dict):
+            appkey = acct_info.get("app_key", "").strip()
+            secretkey = acct_info.get("app_secret", "").strip()
+        else:
+            # Fallback for old schema
+            appkey = self.appkey
+            secretkey = self.secretkey
 
         if not appkey or not secretkey:
-            log_error(f"Kiwoom AppKey 또는 SecretKey가 config.json에 설정되지 않았습니다.")
+            log_error(f"[{acct_no}] 계좌별 Kiwoom AppKey 또는 SecretKey가 설정되지 않았습니다.")
             return ""
 
         url = f"{self.base_url}/oauth2/token"

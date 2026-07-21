@@ -49,3 +49,4 @@ class StrategyFactory:
 # 이 시점에 패키지 초기화를 통해 등록되도록 각 전략 파일에서 자신을 등록하도록 할 수도 있지만,
 # 명시적으로 임포트하여 등록하는 방식을 사용할 수도 있습니다.
 import core.strategies.surfer_batch
+import core.strategies.infinite_buy

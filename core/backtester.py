@@ -16,21 +16,20 @@ class Backtester:
     """
 
     @staticmethod
-    def calculate_wilders_rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    def calculate_sma_rsi(series: pd.Series, period: int = 14) -> pd.Series:
         """
-        Wilder's Smoothing 방식의 RSI 계산
+        단순 이동평균(SMA) 방식의 QQQ 주간 RSI 계산 (구글 시트 방식)
         """
         delta = series.diff()
         gain = delta.clip(lower=0)
         loss = -delta.clip(upper=0)
         
-        # Wilder's Smoothing (Exponential Moving Average with alpha=1/period)
-        avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
-        avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
+        avg_gain = gain.rolling(window=period).mean()
+        avg_loss = loss.rolling(window=period).mean()
         
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
-        return rsi
+        return rsi.round(2)
 
     @classmethod
     def get_market_data(cls, ticker: str, start_date_str: str, end_date_str: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -44,22 +43,24 @@ class Backtester:
         qqq_start_date = start_date - datetime.timedelta(days=365)
         qqq_start_str = qqq_start_date.strftime("%Y-%m-%d")
         
-        logger.info(f"Downloading QQQ weekly data from {qqq_start_str} to {end_date_str}")
-        df_qqq = yf.download("QQQ", start=qqq_start_str, end=end_date_str, interval="1wk", progress=False)
+        logger.info(f"Downloading QQQ daily data from {qqq_start_str} to {end_date_str} for weekly RSI")
+        df_qqq = yf.download("QQQ", start=qqq_start_str, end=end_date_str, auto_adjust=False, progress=False)
         if df_qqq.empty:
-            raise ValueError("QQQ 주간 데이터를 불러오지 못했습니다.")
+            raise ValueError("QQQ 데이터를 불러오지 못했습니다.")
             
-        # QQQ MultiIndex 처리 방지
         if isinstance(df_qqq.columns, pd.MultiIndex):
             close_qqq = df_qqq['Close']['QQQ']
         else:
             close_qqq = df_qqq['Close']
             
         close_qqq = close_qqq.dropna()
-        rsi_qqq = cls.calculate_wilders_rsi(close_qqq, 14)
+        
+        # 금요일 종가 필터링 (금요일 휴장 시 목요일 종가)
+        weekly_close = close_qqq.resample('W-FRI').last().dropna()
+        rsi_qqq = cls.calculate_sma_rsi(weekly_close, 14)
         
         # QQQ 데이터프레임 구성 (RSI, 전주 RSI, Trend 포함)
-        df_qqq_clean = pd.DataFrame(index=close_qqq.index)
+        df_qqq_clean = pd.DataFrame(index=weekly_close.index)
         df_qqq_clean['RSI'] = rsi_qqq
         df_qqq_clean['RSI_prev'] = rsi_qqq.shift(1)
         
@@ -117,8 +118,10 @@ class Backtester:
         # 1. 일봉 데이터와 QQQ 주간 RSI 데이터 매핑
         sim_dates_data = []
         for d in df_target.index:
-            # 해당 일봉 날짜 d와 같거나 이전인 가장 최근의 QQQ 주간 RSI 행 매핑
-            prev_qqq_rows = df_qqq[df_qqq.index <= d]
+            # 해당 일봉 날짜 d가 속한 주의 월요일 구하기
+            d_monday = d - datetime.timedelta(days=d.weekday())
+            # 월요일 이전인 가장 최근의 QQQ 주간 RSI 행 매핑
+            prev_qqq_rows = df_qqq[df_qqq.index < d_monday]
             if prev_qqq_rows.empty:
                 rsi = 50.0
                 prev_rsi = 50.0
@@ -144,6 +147,7 @@ class Backtester:
         buy_batches = [] # {buyPrice, qty, cycleDays, buyMode, buyDate}
         sim_tx_log = []
         sim_history = []
+        current_mode = "안전모드"
         
         for i, today in enumerate(sim_dates_data):
             prev = sim_dates_data[i - 1] if i > 0 else None
@@ -194,29 +198,29 @@ class Backtester:
                     
             today["realized"] = today_realized_profit
             
-            # (2) 당일 매매모드 판정
-            current_mode = "안전모드"
-            if buy_batches:
-                current_mode = buy_batches[-1]["buyMode"]
-                
-            trend = today["trend"]
-            latest_rsi = today["rsi"]
-            prev_rsi = today["prev_rsi"]
+            # (2) 당일 매매모드 판정 (구글 시트 OFFSET 상속 및 전환 로직)
+            latest_rsi = today["rsi"]        # 1주 전 주봉 RSI
+            prev_rsi = today["prev_rsi"]      # 2주 전 주봉 RSI
             
-            if trend == "하락":
-                if latest_rsi > 65:
-                    current_mode = "안전모드"
-                elif 40 < latest_rsi < 50:
-                    current_mode = "안전모드"
-                elif prev_rsi >= 50 > latest_rsi:
-                    current_mode = "안전모드"
-            elif trend == "상승":
-                if prev_rsi <= 50 < latest_rsi:
-                    current_mode = "공세모드"
-                elif 50 < latest_rsi < 60:
-                    current_mode = "공세모드"
-                elif latest_rsi < 35:
-                    current_mode = "공세모드"
+            # 안전모드 전환 조건
+            is_safe_condition = (
+                (prev_rsi > 65 and prev_rsi > latest_rsi) or
+                (40 < prev_rsi < 50 and prev_rsi > latest_rsi) or
+                (latest_rsi < 50 and prev_rsi > 50)
+            )
+            
+            # 공세모드 전환 조건
+            is_aggressive_condition = (
+                (prev_rsi < 35 and prev_rsi < latest_rsi) or
+                (50 < prev_rsi < 60 and prev_rsi < latest_rsi) or
+                (latest_rsi > 50 and prev_rsi < 50)
+            )
+            
+            if is_safe_condition:
+                current_mode = "안전모드"
+            elif is_aggressive_condition:
+                current_mode = "공세모드"
+            # 조건 불만족 시 이전 current_mode 유지 (OFFSET 상속)
                     
             today["mode"] = current_mode
             

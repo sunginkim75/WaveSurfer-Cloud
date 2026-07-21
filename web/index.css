@@ -829,3 +829,21 @@ th.sticky-col {
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* 테이블 헤더 스크롤 고정 */
+.sticky-thead th {
+  position: sticky !important;
+  top: 0;
+  z-index: 5;
+  background-color: #101319; /* default */
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+}
+body.theme-domino .sticky-thead th {
+  background-color: #141417 !important;
+}
+body.theme-rich .sticky-thead th {
+  background-color: #120e26 !important;
+}
+body.theme-bank .sticky-thead th {
+  background-color: #181d26 !important;
+}
+

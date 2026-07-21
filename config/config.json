@@ -1,13 +1,56 @@
 {
+    "sheet_id": "18KaZk-kz7eN2dRDV1xjd9XQKvXwZhHgi6iRkC9sC6fw",
     "accounts": {
-        "acc_1": "계좌번호입력",
-        "acc_2": "계좌번호입력"
-    },
-    "kiwoom": {
-        "app_key": "I6Fz1yE1bPbbrIrSbPParsoUDNxeLIAtWvRHfgt7Eig",
-        "app_secret": "XgYpf3Ak7M0vCzTRSr1eE4CR-cWsP4X0o2omiAVW2lY",
-        "domain": "https://openapi.kiwoom.com",
-        "token_path": "config/kiwoom_token.json"
+        "5573176310": {
+            "nickname": "김성인_55731763",
+            "app_key": "u6_7Q1q9UIksuedqhkDWgcEcOJHvaTathzANRDcuQ8A",
+            "app_secret": "CEnZuNG7z4hSITXMbU6VpLqSofcCVDm7xbRIRbjS6vU"
+        },
+        "5621701610": {
+            "nickname": "김성인_56217016",
+            "app_key": "65W-1AyeuaVfvPW1GDLkVdXdG637jzMLrMVBXa_Az6g",
+            "app_secret": "BXEfCaNaAzda9S5v6MI4tzQ_MSQuufqb4IZCkTfDnXk"
+        },
+        "5997189210": {
+            "nickname": "김성인_59971892",
+            "app_key": "OmBzf4KuJXAeXZIScletwyLrOdQdNVuioc_AFwUPsmQ",
+            "app_secret": "rG3nMAY351QYqHNO4SU0ZUhvwB0d3OtqXPNjUCd4GHE"
+        },
+        "6005537110": {
+            "nickname": "김성인_60055371",
+            "app_key": "sLk34fefWUaVfvj4gYPSxShfAaUeJVbcQNbYkGlKQTM",
+            "app_secret": "cVzf_yT3xF6A07Jg8FjJlAk1QD4MFsvEWC_9onnvHyc"
+        },
+        "6186526910": {
+            "nickname": "김성인_61865269",
+            "app_key": "i9UwtjaFk5KeySoQGDFFucuWf8uNd585QVz3lECpveg",
+            "app_secret": "6dlrNHP4PHbiBeBFASrgif6l02BDQT6IMbnDRUJfMps"
+        },
+        "6307709110": {
+            "nickname": "김성인_SITW",
+            "app_key": "Uzxo5MwFi4E_RzmmCTb8gZrYMsMIzfmym32S5TVIaro",
+            "app_secret": "6_KVCVaRcdNgKTLT0XCyuX6pixMrvtkDZkKunRChZsk"
+        },
+        "6325538410": {
+            "nickname": "김성인_63255384",
+            "app_key": "OYZusqGWgRDIKNcj6RHq3EKAdaLDkfReptSlhOsI-Rc",
+            "app_secret": "90_1eE3WmyrZ1YcReeXkagxlysEcRO65CkVf3exL33o"
+        },
+        "6023640210": {
+            "nickname": "김영숙_60236402",
+            "app_key": "beqTSWkW4vulZpOJoO1TzDQ4IpBsubIHNX5Y0jzs914",
+            "app_secret": "8ThpvdO4cPGOuz1OyBSJ5ZE5KOdO0GtBKdIPPAZfG94"
+        },
+        "6026711410": {
+            "nickname": "김영숙_60267114",
+            "app_key": "omugBxJPno-ILkSXZHuJrEZx7ILeBel3nmutSZo_jH8",
+            "app_secret": "Vhc24n-eizJscSYPnXryc7F1k3sajk_j3QCNl3bHCr0"
+        },
+        "6391889210": {
+            "nickname": "김영숙_63918892",
+            "app_key": "d8rYmArec0eRdNLKuWFNcouD1PYsE3G4dmKXuy3WgcY",
+            "app_secret": "_B7x2fZsrAJpg6rReJJ6qPaLEfl_pjxX___ioZUewGI"
+        }
     },
     "telegram": {
         "bot_token": "8862079725:AAE946dfuqW6cgj720hyMNU4dXUtAa-k7BE",
@@ -16,16 +59,15 @@
     "server": {
         "passcode": "admin1234",
         "port": 8000,
-        "mode": "mock"
+        "mode": "real"
     },
     "tasks": [
         {
-            "id": "task_3917820f",
-            "account_no": "61109250",
+            "id": "task_c8c12734",
+            "account_no": "6307709110",
             "nickname": "SI_MOCK",
             "strategy": "SURFER_BATCH",
             "ticker": "SOXL",
-            "exchange": "NY",
             "rsi_ticker": "QQQ",
             "seed_amt": 10000,
             "safe_buy_pct": 3.0,
@@ -36,16 +78,26 @@
             "update_period": 10,
             "compounding_profit_rate": 80,
             "compounding_loss_rate": 30,
-            "is_active": true
+            "losscut_mode": false,
+            "ib_loc_sell_pct": 5.0,
+            "ib_limit_sell_pct": 10.0,
+            "ib_loc_buy_pct": 0.0,
+            "ib_losscut_pct": -10.0,
+            "is_active": true,
+            "status": "ACTIVE",
+            "operation_mode": "REAL_MANUAL",
+            "created_at": "2026-07-13",
+            "last_mode": "안전모드",
+            "last_compounding_cash": 10000.0
         },
         {
-            "id": "task_10eacd1c",
-            "account_no": "61109250",
-            "nickname": "YS_WS",
+            "id": "task_85561c30",
+            "account_no": "5621701610",
+            "nickname": "VR_WS_TEST",
             "strategy": "SURFER_BATCH",
             "ticker": "SOXL",
             "rsi_ticker": "QQQ",
-            "seed_amt": 10000,
+            "seed_amt": 13657,
             "safe_buy_pct": 3.0,
             "safe_sell_pct": 0.2,
             "agg_buy_pct": 5.0,
@@ -54,7 +106,17 @@
             "update_period": 10,
             "compounding_profit_rate": 80,
             "compounding_loss_rate": 30,
-            "is_active": true
+            "losscut_mode": false,
+            "ib_loc_sell_pct": 5.0,
+            "ib_limit_sell_pct": 10.0,
+            "ib_loc_buy_pct": 0.0,
+            "ib_losscut_pct": -10.0,
+            "is_active": true,
+            "status": "ACTIVE",
+            "operation_mode": "REAL_MANUAL",
+            "created_at": "2026-07-22",
+            "last_compounding_cash": 13657.0,
+            "last_mode": "안전모드"
         }
     ],
     "global_settings": {

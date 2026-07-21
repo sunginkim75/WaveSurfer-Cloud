@@ -1,0 +1,25 @@
+{
+  "original_orders": [
+    {
+      "action": "BUY",
+      "order_type": "LOC",
+      "qty": 7,
+      "price": 198.03,
+      "reason": "LOC 신규 매수 (안전모드)",
+      "mode": "안전모드",
+      "tier": 0,
+      "id": "orig_SOXL_task_c8c12734_0_d34f"
+    }
+  ],
+  "virtual_netted": [
+    {
+      "id": "v1",
+      "action": "매수",
+      "price": 198.03,
+      "qty": 7,
+      "orig_id": "orig_SOXL_task_c8c12734_0_d34f",
+      "map_type": "direct",
+      "is_market": false
+    }
+  ]
+}

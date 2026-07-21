@@ -1,5 +1,5 @@
 // 기본 상수 설정
-const APP_VERSION = '1.21.0';
+const APP_VERSION = '1.25.1';
 const DEFAULT_CLIENT_ID = '335241298668-25j14dtk9qsc9bl2ij6ugm363kqo3vsk.apps.googleusercontent.com';
 const DEFAULT_SHEET_ID = '1PZvpv4OAzosC4gRbcBR2NcCgbroR2-4VT9A9TmOmr0U';
 
@@ -365,7 +365,7 @@ function initTabs() {
       });
       
       // 설정 탭으로 갈 경우 임시 리스트 렌더링 갱신
-      if (targetTab === 'settings-tab') {
+      if (targetTab === 'system-tab' || targetTab === 'settings-tab') {
         tempSheets = [...config.sheets];
         renderTempSheetList();
       }
@@ -1540,7 +1540,7 @@ function renderDailyCards() {
         </div>
         <div class="daily-info-item">
           <span class="daily-info-label">종가/수량</span>
-          <span class="daily-info-val">${formatCurrency(item.close, '$')} / ${item.holdings.toLocaleString()}주</span>
+          <span class="daily-info-val">${formatCurrency(item.close, '$')} / ${(item.holdings || 0).toLocaleString()}주</span>
         </div>
         <div class="daily-info-item">
           <span class="daily-info-label">당일손익</span>
@@ -1595,7 +1595,7 @@ function renderTransactionCards() {
           <span class="tx-type-badge ${typeClass}">${typeLabel}</span>
         </div>
         <div class="tx-date-mode">${t.date} <span style="opacity: 0.6;">[${t.mode}]</span></div>
-        <div class="tx-qty-price">${t.qty.toLocaleString()}주 • 단가: ${formatCurrency(t.price, '$')}</div>
+        <div class="tx-qty-price">${(t.qty || 0).toLocaleString()}주 • 단가: ${formatCurrency(t.price, '$')}</div>
       </div>
       <div class="tx-right">
         <div class="tx-amt ${amtColorClass}">${formatCurrency(t.totalVal, '$')}</div>
@@ -2364,7 +2364,7 @@ function renderOrderGuideTable() {
             <td style="padding: 0.75rem 0.5rem; color: var(--text-primary); text-align: left; vertical-align: middle; font-weight: 500;">${row.type}</td>
             <td style="padding: 0.75rem 0.5rem; color: var(--text-primary); text-align: right; vertical-align: middle; font-weight: 600;">${formatCurrency(row.price, '$', 2)}</td>
             <td style="padding: 0.75rem 0.5rem; text-align: right; vertical-align: middle;">${pctDiffText}</td>
-            <td style="padding: 0.75rem 0.5rem; color: var(--text-primary); text-align: right; vertical-align: middle; font-weight: 600;">${row.qty.toLocaleString()}주</td>
+            <td style="padding: 0.75rem 0.5rem; color: var(--text-primary); text-align: right; vertical-align: middle; font-weight: 600;">${(row.qty || 0).toLocaleString()}주</td>
           </tr>
         `;
       });

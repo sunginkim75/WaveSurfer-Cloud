@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from utils.path_handler import resource_path
+from utils.path_handler import get_resource_path as resource_path
 
 app = FastAPI(title="WaveSurfer Cloud API", version="1.0.0")
 

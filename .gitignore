@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+logs/
+*.log
+Debug/compare_result.txt
+Debug/may_rsi_compare_result.txt
+Debug/mode_guide_result.txt
+config/google_key.json
+config/trade_*.json
+config/*.bak
